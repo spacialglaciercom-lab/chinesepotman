@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trash Collection Route Planner</title>
+  <meta name="description" content="Generate optimized trash collection routes from OpenStreetMap data using the Chinese Postman Problem algorithm">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- React and ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Test script to verify libraries load -->
+  <script>
+    window.addEventListener('load', function() {
+      console.log('=== Library Check ===');
+      console.log('React loaded:', typeof React !== 'undefined', React ? 'v' + React.version : '');
+      console.log('ReactDOM loaded:', typeof ReactDOM !== 'undefined');
+      console.log('Babel loaded:', typeof Babel !== 'undefined');
+      console.log('Leaflet loaded:', typeof L !== 'undefined');
+      
+      // Quick test render
+      if (typeof React !== 'undefined' && typeof ReactDOM !== 'undefined') {
+        try {
+          const testDiv = document.createElement('div');
+          testDiv.id = 'react-test';
+          testDiv.style.display = 'none';
+          document.body.appendChild(testDiv);
+          if (ReactDOM.createRoot) {
+            const testRoot = ReactDOM.createRoot(testDiv);
+            testRoot.render(React.createElement('div', null, 'React test'));
+            console.log('React createRoot test: SUCCESS');
+          } else {
+            ReactDOM.render(React.createElement('div', null, 'React test'), testDiv);
+            console.log('React render test: SUCCESS');
+          }
+        } catch (e) {
+          console.error('React test render failed:', e);
+        }
+      }
+    });
+  </script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --radius: 0.5rem;
+      --background: oklch(0.13 0.02 260);
+      --foreground: oklch(0.95 0.01 260);
+      --card: oklch(0.17 0.02 260);
+      --card-foreground: oklch(0.95 0.01 260);
+      --popover: oklch(0.15 0.02 260);
+      --popover-foreground: oklch(0.95 0.01 260);
+      --primary: oklch(0.75 0.15 195);
+      --primary-foreground: oklch(0.13 0.02 260);
+      --secondary: oklch(0.25 0.02 260);
+      --secondary-foreground: oklch(0.85 0.01 260);
+      --muted: oklch(0.22 0.02 260);
+      --muted-foreground: oklch(0.6 0.02 260);
+      --accent: oklch(0.7 0.2 330);
+      --accent-foreground: oklch(0.98 0.01 260);
+      --destructive: oklch(0.6 0.2 25);
+      --destructive-foreground: oklch(0.98 0.01 260);
+      --border: oklch(0.3 0.02 260);
+      --input: oklch(0.25 0.02 260);
+      --ring: oklch(0.75 0.15 195);
+    }
+    
+    body {
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+      min-height: 100vh;
+    }
+    
+    .container {
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+    
+    .flex {
+      display: flex;
+    }
+    
+    .flex-col {
+      flex-direction: column;
+    }
+    
+    .items-center {
+      align-items: center;
+    }
+    
+    .justify-between {
+      justify-content: space-between;
+    }
+    
+    .gap-2 {
+      gap: 0.5rem;
+    }
+    
+    .gap-3 {
+      gap: 0.75rem;
+    }
+    
+    .gap-4 {
+      gap: 1rem;
+    }
+    
+    .p-4 {
+      padding: 1rem;
+    }
+    
+    .px-4 {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    
+    .py-2 {
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+    
+    .py-3 {
+      padding-top: 0.75rem;
+      padding-bottom: 0.75rem;
+    }
+    
+    .mb-2 {
+      margin-bottom: 0.5rem;
+    }
+    
+    .mb-4 {
+      margin-bottom: 1rem;
+    }
+    
+    .mt-2 {
+      margin-top: 0.5rem;
+    }
+    
+    .mt-4 {
+      margin-top: 1rem;
+    }
+    
+    .w-full {
+      width: 100%;
+    }
+    
+    .h-full {
+      height: 100%;
+    }
+    
+    .min-h-screen {
+      min-height: 100vh;
+    }
+    
+    .text-sm {
+      font-size: 0.875rem;
+    }
+    
+    .text-xs {
+      font-size: 0.75rem;
+    }
+    
+    .text-lg {
+      font-size: 1.125rem;
+    }
+    
+    .font-display {
+      font-family: "Space Grotesk", system-ui, sans-serif;
+    }
+    
+    .font-mono {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    
+    .font-semibold {
+      font-weight: 600;
+    }
+    
+    .font-medium {
+      font-weight: 500;
+    }
+    
+    .border {
+      border: 1px solid var(--border);
+    }
+    
+    .border-r {
+      border-right: 1px solid var(--border);
+    }
+    
+    .border-l {
+      border-left: 1px solid var(--border);
+    }
+    
+    .border-b {
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .rounded {
+      border-radius: var(--radius);
+    }
+    
+    .rounded-lg {
+      border-radius: calc(var(--radius) + 2px);
+    }
+    
+    .bg-background {
+      background-color: var(--background);
+    }
+    
+    .bg-card {
+      background-color: var(--card);
+    }
+    
+    .bg-sidebar {
+      background-color: oklch(0.11 0.02 260);
+    }
+    
+    .bg-primary {
+      background-color: var(--primary);
+    }
+    
+    .text-foreground {
+      color: var(--foreground);
+    }
+    
+    .text-muted-foreground {
+      color: var(--muted-foreground);
+    }
+    
+    .text-primary {
+      color: var(--primary);
+    }
+    
+    .cursor-pointer {
+      cursor: pointer;
+    }
+    
+    .hover\:opacity-80:hover {
+      opacity: 0.8;
+    }
+    
+    .transition-colors {
+      transition: color 0.15s ease-in-out;
+    }
+    
+    button {
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-weight: 500;
+      transition: opacity 0.2s;
+    }
+    
+    button:hover:not(:disabled) {
+      opacity: 0.9;
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    input[type="text"],
+    input[type="number"],
+    input[type="file"],
+    input[type="range"] {
+      background: var(--input);
+      border: 1px solid var(--border);
+      color: var(--foreground);
+      padding: 0.5rem;
+      border-radius: var(--radius);
+      width: 100%;
+    }
+    
+    input[type="range"] {
+      padding: 0;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--muted);
+      outline: none;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--primary);
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: var(--primary);
+      cursor: pointer;
+      border-radius: 50%;
+      border: none;
+    }
+    
+    input[type="file"] {
+      display: none;
+    }
+    
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    
+    .sidebar {
+      width: 320px;
+      border-right: 1px solid var(--border);
+      background: var(--sidebar);
+      overflow-y: auto;
+      height: calc(100vh - 57px);
+    }
+    
+    .main {
+      flex: 1;
+      position: relative;
+    }
+    
+    .panel {
+      width: 384px;
+      border-left: 1px solid var(--border);
+      background: var(--sidebar);
+      overflow-y: auto;
+      height: calc(100vh - 57px);
+    }
+    
+    .map-container {
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+    }
+    
+    .space-y-2 > * + * {
+      margin-top: 0.5rem;
+    }
+    
+    .space-y-4 > * + * {
+      margin-top: 1rem;
+    }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.5rem;
+      border-radius: calc(var(--radius) - 2px);
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+    }
+    
+    .progress {
+      width: 100%;
+      height: 4px;
+      background: var(--muted);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+    
+    .log-entry {
+      display: flex;
+      align-items: start;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      font-size: 0.75rem;
+      font-family: "IBM Plex Mono", monospace;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    
+    .stats-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+    
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem;
+    }
+    
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .upload-area:hover {
+      border-color: var(--primary);
+      background: oklch(0.75 0.15 195 / 0.05);
+    }
+    
+    .upload-area.has-file {
+      border-color: var(--primary);
+      background: oklch(0.75 0.15 195 / 0.05);
+    }
+    
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--muted);
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    
+    .scroll-area {
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: oklch(0.15 0.02 260);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: oklch(0.35 0.02 260);
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: oklch(0.45 0.02 260);
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div style="padding: 2rem; text-align: center; color: white; font-family: system-ui;">
+      <p>Loading application...</p>
+    </div>
+  </div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef, useCallback, createContext, useContext } = React;
+
+    // Route Processor (simplified version)
+    const INCLUDE_HIGHWAYS = new Set(['residential', 'unclassified', 'service', 'tertiary', 'secondary', 'primary', 'living_street']);
+    const EXCLUDE_SERVICE = new Set(['parking_aisle', 'driveway']);
+    const EXCLUDE_ACCESS = new Set(['private', 'no']);
+    const EXCLUDE_HIGHWAYS = new Set(['footway', 'cycleway', 'steps', 'path', 'pedestrian', 'track']);
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const phi1 = (lat1 * Math.PI) / 180;
+      const phi2 = (lat2 * Math.PI) / 180;
+      const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+      const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+      const a = Math.sin(deltaPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function calculateBearing(lat1, lon1, lat2, lon2) {
+      const phi1 = (lat1 * Math.PI) / 180;
+      const phi2 = (lat2 * Math.PI) / 180;
+      const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+      const x = Math.sin(deltaLambda) * Math.cos(phi2);
+      const y = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+      let bearing = Math.atan2(x, y) * (180 / Math.PI);
+      bearing = (bearing + 360) % 360;
+      return bearing;
+    }
+
+    function parseOSMFile(xmlContent) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlContent, 'text/xml');
+      const nodes = new Map();
+      const ways = [];
+
+      doc.querySelectorAll('node').forEach((node) => {
+        const id = parseInt(node.getAttribute('id') || '0');
+        const lat = parseFloat(node.getAttribute('lat') || '0');
+        const lon = parseFloat(node.getAttribute('lon') || '0');
+        nodes.set(id, { id, lat, lon });
+      });
+
+      doc.querySelectorAll('way').forEach((way) => {
+        const id = parseInt(way.getAttribute('id') || '0');
+        const wayNodes = [];
+        const tags = {};
+
+        way.querySelectorAll('nd').forEach((nd) => {
+          wayNodes.push(parseInt(nd.getAttribute('ref') || '0'));
+        });
+
+        way.querySelectorAll('tag').forEach((tag) => {
+          tags[tag.getAttribute('k') || ''] = tag.getAttribute('v') || '';
+        });
+
+        ways.push({ id, nodes: wayNodes, tags });
+      });
+
+      return { nodes, ways };
+    }
+
+    function filterWays(ways) {
+      const included = [];
+      const excluded = [];
+
+      for (const way of ways) {
+        const highway = way.tags.highway || '';
+        const service = way.tags.service || '';
+        const access = way.tags.access || '';
+
+        if (EXCLUDE_SERVICE.has(service) || EXCLUDE_ACCESS.has(access)) {
+          excluded.push(way);
+          continue;
+        }
+
+        if (!INCLUDE_HIGHWAYS.has(highway) && (EXCLUDE_HIGHWAYS.has(highway) || highway === '')) {
+          excluded.push(way);
+          continue;
+        }
+
+        included.push(way);
+      }
+
+      return { included, excluded };
+    }
+
+    function buildGraph(nodes, ways, ignoreOneways) {
+      const adjacency = new Map();
+      const graphNodes = new Map();
+      let edgeKey = 0;
+
+      for (const way of ways) {
+        const isOneway = way.tags.oneway === 'yes';
+        for (let i = 0; i < way.nodes.length - 1; i++) {
+          const u = way.nodes[i];
+          const v = way.nodes[i + 1];
+          const nodeU = nodes.get(u);
+          const nodeV = nodes.get(v);
+          if (!nodeU || !nodeV) continue;
+
+          graphNodes.set(u, nodeU);
+          graphNodes.set(v, nodeV);
+
+          const length = haversineDistance(nodeU.lat, nodeU.lon, nodeV.lat, nodeV.lon);
+          const bearing = calculateBearing(nodeU.lat, nodeU.lon, nodeV.lat, nodeV.lon);
+
+          const edgeData = { from: u, to: v, length, bearing, wayId: way.id };
+
+          if (!adjacency.has(u)) adjacency.set(u, []);
+          adjacency.get(u).push({ to: v, key: edgeKey++, data: edgeData });
+
+          if (ignoreOneways || !isOneway) {
+            const reverseData = { ...edgeData, from: v, to: u, bearing: (bearing + 180) % 360 };
+            if (!adjacency.has(v)) adjacency.set(v, []);
+            adjacency.get(v).push({ to: u, key: edgeKey++, data: reverseData });
+          }
+        }
+      }
+
+      return { adjacency, nodes: graphNodes, edgeCount: edgeKey };
+    }
+
+    function findLargestSCC(graph) {
+      const nodes = Array.from(graph.nodes.keys());
+      const visited = new Set();
+      const finished = [];
+
+      function dfs1(node) {
+        visited.add(node);
+        const edges = graph.adjacency.get(node) || [];
+        for (const edge of edges) {
+          if (!visited.has(edge.to)) dfs1(edge.to);
+        }
+        finished.push(node);
+      }
+
+      for (const node of nodes) {
+        if (!visited.has(node)) dfs1(node);
+      }
+
+      const reverseAdj = new Map();
+      for (const [from, edges] of graph.adjacency.entries()) {
+        for (const edge of edges) {
+          if (!reverseAdj.has(edge.to)) reverseAdj.set(edge.to, []);
+          reverseAdj.get(edge.to).push(from);
+        }
+      }
+
+      visited.clear();
+      const components = [];
+
+      function dfs2(node, component) {
+        visited.add(node);
+        component.add(node);
+        const neighbors = reverseAdj.get(node) || [];
+        for (const neighbor of neighbors) {
+          if (!visited.has(neighbor)) dfs2(neighbor, component);
+        }
+      }
+
+      while (finished.length > 0) {
+        const node = finished.pop();
+        if (!visited.has(node)) {
+          const component = new Set();
+          dfs2(node, component);
+          components.push(component);
+        }
+      }
+
+      const largestComponent = components.reduce((a, b) => a.size > b.size ? a : b, new Set());
+
+      const subAdjacency = new Map();
+      const subNodes = new Map();
+      let edgeCount = 0;
+
+      for (const nodeId of largestComponent) {
+        const node = graph.nodes.get(nodeId);
+        if (node) subNodes.set(nodeId, node);
+        const edges = graph.adjacency.get(nodeId) || [];
+        const filteredEdges = edges.filter(e => largestComponent.has(e.to));
+        if (filteredEdges.length > 0) {
+          subAdjacency.set(nodeId, filteredEdges);
+          edgeCount += filteredEdges.length;
+        }
+      }
+
+      return { subgraph: { adjacency: subAdjacency, nodes: subNodes, edgeCount }, componentCount: components.length };
+    }
+
+    function findCentroidNode(graph) {
+      let sumLat = 0, sumLon = 0, count = 0;
+      for (const node of graph.nodes.values()) {
+        sumLat += node.lat;
+        sumLon += node.lon;
+        count++;
+      }
+      const centroidLat = sumLat / count;
+      const centroidLon = sumLon / count;
+
+      let minDist = Infinity;
+      let closestNode = Array.from(graph.nodes.keys())[0];
+      for (const [id, node] of graph.nodes.entries()) {
+        const dist = haversineDistance(centroidLat, centroidLon, node.lat, node.lon);
+        if (dist < minDist) {
+          minDist = dist;
+          closestNode = id;
+        }
+      }
+      return closestNode;
+    }
+
+    function calculateTurnScore(incomingBearing, outgoingBearing, penalties) {
+      let turnAngle = outgoingBearing - incomingBearing;
+      while (turnAngle > 180) turnAngle -= 360;
+      while (turnAngle < -180) turnAngle += 360;
+      
+      const absTurn = Math.abs(turnAngle);
+      
+      if (absTurn > 150) {
+        return 500 + (absTurn - 150) + penalties.uTurn;
+      }
+      
+      if (absTurn <= 20) {
+        return absTurn + penalties.straight;
+      }
+      
+      if (turnAngle > 0) {
+        return 20 + turnAngle + penalties.rightTurn;
+      } else {
+        return 160 + absTurn + penalties.leftTurn;
+      }
+    }
+
+    function hierholzer(graph, startNode, penalties) {
+      const activePenalties = penalties || {
+        straight: 0,
+        rightTurn: 10,
+        leftTurn: 50,
+        uTurn: 500,
+      };
+
+      const remainingEdges = new Map();
+      for (const [node, edges] of graph.adjacency.entries()) {
+        remainingEdges.set(node, [...edges]);
+      }
+
+      const circuit = [];
+      const stack = [{ node: startNode, incomingBearing: null }];
+
+      while (stack.length > 0) {
+        const { node, incomingBearing } = stack[stack.length - 1];
+        const edges = remainingEdges.get(node) || [];
+
+        if (edges.length > 0) {
+          let selectedEdge = edges[0];
+          if (incomingBearing !== null && edges.length > 1) {
+            const edgesWithScore = edges.map(edge => {
+              const score = calculateTurnScore(incomingBearing, edge.data.bearing, activePenalties);
+              return { edge, score };
+            });
+            edgesWithScore.sort((a, b) => a.score - b.score);
+            selectedEdge = edgesWithScore[0].edge;
+          }
+
+          const idx = edges.findIndex(e => e.key === selectedEdge.key);
+          if (idx !== -1) edges.splice(idx, 1);
+          stack.push({ node: selectedEdge.to, incomingBearing: selectedEdge.data.bearing });
+        } else {
+          circuit.push(stack.pop().node);
+        }
+      }
+
+      circuit.reverse();
+      return circuit;
+    }
+
+    function generateGPX(circuit, nodes, filename) {
+      const points = circuit.map(nodeId => nodes.get(nodeId)).filter(node => node !== undefined);
+      const timestamp = new Date().toISOString();
+
+      let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="Trash Collection Route Planner">
+  <metadata>
+    <name>${filename}</name>
+    <desc>Trash collection route generated using Chinese Postman Problem algorithm</desc>
+    <time>${timestamp}</time>
+  </metadata>
+  <trk>
+    <name>Trash Collection Route</name>
+    <desc>Generated on ${new Date().toLocaleString()}</desc>
+    <trkseg>
+`;
+
+      for (const point of points) {
+        gpx += `      <trkpt lat="${point.lat}" lon="${point.lon}"></trkpt>\n`;
+      }
+
+      gpx += `    </trkseg>
+  </trk>
+</gpx>`;
+
+      return gpx;
+    }
+
+    function calculateRouteStats(circuit, graph, includedWays, excludedWays, componentCount) {
+      let totalDistance = 0;
+      let traversals = 0;
+      let uTurnCount = 0;
+      let rightTurnCount = 0;
+      let leftTurnCount = 0;
+      let prevBearing = null;
+      let lastCountedBearing = null;
+
+      for (let i = 0; i < circuit.length - 1; i++) {
+        const u = circuit[i];
+        const v = circuit[i + 1];
+        const edges = graph.adjacency.get(u) || [];
+        const edge = edges.find(e => e.to === v);
+        if (edge) {
+          totalDistance += edge.data.length;
+          traversals++;
+          
+          if (lastCountedBearing !== null && edge.data.bearing !== prevBearing) {
+            let turnAngle = edge.data.bearing - lastCountedBearing;
+            while (turnAngle > 180) turnAngle -= 360;
+            while (turnAngle < -180) turnAngle += 360;
+            
+            const absTurn = Math.abs(turnAngle);
+            
+            if (absTurn > 150) {
+              uTurnCount++;
+            } else if (turnAngle > 20) {
+              rightTurnCount++;
+            } else if (turnAngle < -20) {
+              leftTurnCount++;
+            }
+          }
+          
+          if (prevBearing !== null && edge.data.bearing !== prevBearing) {
+            lastCountedBearing = prevBearing;
+          }
+          prevBearing = edge.data.bearing;
+        }
+      }
+
+      const totalDistanceKm = totalDistance / 1000;
+      const driveTimeMin = (totalDistanceKm / 15) * 60;
+
+      return {
+        totalDistanceKm,
+        totalTraversals: traversals,
+        driveTimeMin,
+        nodeCount: graph.nodes.size,
+        edgeCount: graph.edgeCount,
+        connectedComponents: componentCount,
+        includedWays,
+        excludedWays,
+        uTurnCount,
+        rightTurnCount,
+        leftTurnCount
+      };
+    }
+
+    async function processRoute(osmContent, filename, ignoreOneways, onLog, customStartPoint, penalties) {
+      const logs = [];
+      const log = (message, type = 'info') => {
+        const entry = { timestamp: new Date(), message, type };
+        logs.push(entry);
+        onLog(entry);
+      };
+
+      log('Starting route generation...', 'info');
+      log('Parsing OSM file...', 'info');
+
+      const { nodes, ways } = parseOSMFile(osmContent);
+      log(`Parsed ${nodes.size} nodes and ${ways.length} ways`, 'success');
+
+      log('Filtering road segments...', 'info');
+      const { included, excluded } = filterWays(ways);
+      log(`Included ${included.length} ways, excluded ${excluded.length} ways`, 'info');
+
+      if (included.length === 0) {
+        throw new Error('No valid road segments found in the OSM file');
+      }
+
+      log('Building road network graph...', 'info');
+      const graph = buildGraph(nodes, included, ignoreOneways);
+      log(`Graph built with ${graph.nodes.size} nodes and ${graph.edgeCount} edges`, 'success');
+
+      log('Analyzing network connectivity...', 'info');
+      const { subgraph, componentCount } = findLargestSCC(graph);
+      log(`Found ${componentCount} connected components`, 'info');
+      log(`Largest component: ${subgraph.nodes.size} nodes, ${subgraph.edgeCount} edges`, 'success');
+
+      if (subgraph.nodes.size === 0) {
+        throw new Error('No connected road network found');
+      }
+
+      let startNode;
+      if (customStartPoint) {
+        log(`Using custom start point: (${customStartPoint.lat.toFixed(6)}, ${customStartPoint.lon.toFixed(6)})`, 'info');
+        let minDist = Infinity;
+        for (const [id, node] of subgraph.nodes.entries()) {
+          const dist = haversineDistance(customStartPoint.lat, customStartPoint.lon, node.lat, node.lon);
+          if (dist < minDist) {
+            minDist = dist;
+            startNode = id;
+          }
+        }
+      } else {
+        log('Calculating route start point (graph centroid)...', 'info');
+        startNode = findCentroidNode(subgraph);
+      }
+
+      log('Computing optimal route using Hierholzer algorithm...', 'info');
+      const activePenalties = penalties || {
+        straight: 0,
+        rightTurn: 10,
+        leftTurn: 50,
+        uTurn: 500,
+      };
+      log(`Turn penalties - Right: ${activePenalties.rightTurn}, Left: ${activePenalties.leftTurn}, U-turn: ${activePenalties.uTurn}`, 'info');
+      const circuit = hierholzer(subgraph, startNode, activePenalties);
+      log(`Route computed: ${circuit.length} waypoints`, 'success');
+
+      log('Generating GPX file...', 'info');
+      const gpxContent = generateGPX(circuit, subgraph.nodes, filename);
+      log('GPX file generated successfully', 'success');
+
+      const stats = calculateRouteStats(circuit, subgraph, included.length, excluded.length, componentCount);
+      log(`Total distance: ${stats.totalDistanceKm.toFixed(2)} km`, 'info');
+      log(`Estimated drive time: ${stats.driveTimeMin.toFixed(1)} minutes (at 15 km/h)`, 'info');
+      log(`Turn statistics: ${stats.rightTurnCount} right, ${stats.leftTurnCount} left, ${stats.uTurnCount} U-turns`, 'info');
+      if (stats.uTurnCount > 0) {
+        log(`Note: ${stats.uTurnCount} U-turns were unavoidable due to network topology`, 'warning');
+      } else {
+        log('No U-turns in the route!', 'success');
+      }
+      log('Route generation complete!', 'success');
+
+      const coordinates = circuit
+        .map(nodeId => subgraph.nodes.get(nodeId))
+        .filter(node => node !== undefined)
+        .map(node => ({ lat: node.lat, lon: node.lon }));
+
+      let minLat = Infinity, maxLat = -Infinity;
+      let minLon = Infinity, maxLon = -Infinity;
+      for (const coord of coordinates) {
+        minLat = Math.min(minLat, coord.lat);
+        maxLat = Math.max(maxLat, coord.lat);
+        minLon = Math.min(minLon, coord.lon);
+        maxLon = Math.max(maxLon, coord.lon);
+      }
+
+      return { gpxContent, stats, logs, coordinates, bounds: { minLat, maxLat, minLon, maxLon } };
+    }
+
+    // Turn Penalties Context
+    const TurnPenaltiesContext = createContext(null);
+
+    function TurnPenaltiesProvider({ children }) {
+      const [penalties, setPenalties] = useState({
+        straight: 0,
+        rightTurn: 10,
+        leftTurn: 50,
+        uTurn: 500,
+      });
+
+      const updatePenalty = (key, value) => {
+        setPenalties(prev => ({ ...prev, [key]: value }));
+      };
+
+      return (
+        <TurnPenaltiesContext.Provider value={{ penalties, updatePenalty }}>
+          {children}
+        </TurnPenaltiesContext.Provider>
+      );
+    }
+
+    function useTurnPenalties() {
+      return useContext(TurnPenaltiesContext);
+    }
+
+    // Leaflet Map Component
+    function LeafletMap({ route, startPoint }) {
+      const mapContainer = useRef(null);
+      const mapInstance = useRef(null);
+      const routeLayer = useRef(null);
+      const startMarker = useRef(null);
+      const endMarker = useRef(null);
+
+      useEffect(() => {
+        if (!mapContainer.current) return;
+
+        if (!mapInstance.current) {
+          delete L.Icon.Default.prototype._getIconUrl;
+          L.Icon.Default.mergeOptions({
+            iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+          });
+
+          mapInstance.current = L.map(mapContainer.current, {
+            center: [45.5017, -73.5673],
+            zoom: 13,
+          });
+
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20,
+          }).addTo(mapInstance.current);
+        }
+
+        if (routeLayer.current) {
+          mapInstance.current.removeLayer(routeLayer.current);
+          routeLayer.current = null;
+        }
+        if (startMarker.current) {
+          mapInstance.current.removeLayer(startMarker.current);
+          startMarker.current = null;
+        }
+        if (endMarker.current) {
+          mapInstance.current.removeLayer(endMarker.current);
+          endMarker.current = null;
+        }
+
+        if (route && route.coordinates.length > 0) {
+          const coordinates = route.coordinates.map(coord => [coord.lat, coord.lon]);
+          routeLayer.current = L.polyline(coordinates, {
+            color: '#00d4ff',
+            weight: 3,
+            opacity: 0.8,
+          }).addTo(mapInstance.current);
+
+          if (coordinates.length > 0) {
+            startMarker.current = L.marker(coordinates[0]).addTo(mapInstance.current);
+            endMarker.current = L.marker(coordinates[coordinates.length - 1]).addTo(mapInstance.current);
+          }
+
+          const bounds = L.latLngBounds(coordinates);
+          mapInstance.current.fitBounds(bounds, { padding: [50, 50] });
+        } else if (startPoint) {
+          mapInstance.current.setView([startPoint.lat, startPoint.lon], 13);
+          startMarker.current = L.marker([startPoint.lat, startPoint.lon]).addTo(mapInstance.current);
+        }
+      }, [route, startPoint]);
+
+      return <div ref={mapContainer} className="map-container" />;
+    }
+
+    // Turn Penalties Config Component
+    function TurnPenaltiesConfig() {
+      const { penalties, updatePenalty } = useTurnPenalties();
+      const [isExpanded, setIsExpanded] = useState(false);
+
+      return (
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-display">Turn Penalties Configuration</h3>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              style={{ background: 'transparent', border: 'none', padding: '0.25rem', color: 'var(--muted-foreground)' }}
+            >
+              {isExpanded ? '▼' : '▶'}
+            </button>
+          </div>
+          {isExpanded && (
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs text-muted-foreground">Right Turns</label>
+                  <span className="font-mono text-sm text-primary">{penalties.rightTurn}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="200"
+                  step="5"
+                  value={penalties.rightTurn}
+                  onChange={(e) => updatePenalty('rightTurn', parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs text-muted-foreground">Left Turns</label>
+                  <span className="font-mono text-sm text-primary">{penalties.leftTurn}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="500"
+                  step="10"
+                  value={penalties.leftTurn}
+                  onChange={(e) => updatePenalty('leftTurn', parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs text-muted-foreground">U-Turns</label>
+                  <span className="font-mono text-sm text-primary">{penalties.uTurn}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1000"
+                  step="50"
+                  value={penalties.uTurn}
+                  onChange={(e) => updatePenalty('uTurn', parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Main Home Component
+    function Home() {
+      const { penalties } = useTurnPenalties();
+      const [file, setFile] = useState(null);
+      const [fileContent, setFileContent] = useState(null);
+      const fileInputRef = useRef(null);
+      const [filename, setFilename] = useState('trash_route');
+      const [ignoreOneways, setIgnoreOneways] = useState(true);
+      const [useCustomStart, setUseCustomStart] = useState(false);
+      const [startLat, setStartLat] = useState('');
+      const [startLon, setStartLon] = useState('');
+      const [isProcessing, setIsProcessing] = useState(false);
+      const [progress, setProgress] = useState(0);
+      const [logs, setLogs] = useState([]);
+      const [result, setResult] = useState(null);
+      const logsEndRef = useRef(null);
+
+      useEffect(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [logs]);
+
+      const handleFileSelect = useCallback((event) => {
+        const selectedFile = event.target.files?.[0];
+        if (selectedFile) {
+          if (!selectedFile.name.endsWith('.xml') && !selectedFile.name.endsWith('.osm')) {
+            alert('Please select an OSM XML file (.xml or .osm)');
+            return;
+          }
+          setFile(selectedFile);
+          setResult(null);
+          setLogs([]);
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            setFileContent(e.target?.result);
+            alert(`File loaded: ${selectedFile.name}`);
+          };
+          reader.readAsText(selectedFile);
+        }
+      }, []);
+
+      const handleGenerate = useCallback(async () => {
+        if (!fileContent) {
+          alert('Please upload an OSM file first');
+          return;
+        }
+
+        let customStart = null;
+        if (useCustomStart) {
+          const lat = parseFloat(startLat);
+          const lon = parseFloat(startLon);
+          if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            alert('Please enter valid coordinates');
+            return;
+          }
+          customStart = { lat, lon };
+        }
+
+        setIsProcessing(true);
+        setProgress(0);
+        setLogs([]);
+        setResult(null);
+
+        try {
+          const result = await processRoute(
+            fileContent,
+            filename,
+            ignoreOneways,
+            (log) => {
+              setLogs(prev => [...prev, log]);
+              setProgress(prev => Math.min(prev + 8, 95));
+            },
+            customStart,
+            penalties
+          );
+
+          setProgress(100);
+          setResult(result);
+          alert('Route generated successfully!');
+        } catch (error) {
+          alert(`Generation failed: ${error.message}`);
+          setLogs(prev => [...prev, { timestamp: new Date(), message: `Error: ${error.message}`, type: 'error' }]);
+        } finally {
+          setIsProcessing(false);
+        }
+      }, [fileContent, filename, ignoreOneways, useCustomStart, startLat, startLon, penalties]);
+
+      const handleDownload = useCallback(() => {
+        if (!result) return;
+        const blob = new Blob([result.gpxContent], { type: 'application/gpx+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filename}.gpx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        alert('GPX file downloaded!');
+      }, [result, filename]);
+
+      const handleReset = useCallback(() => {
+        setFile(null);
+        setFileContent(null);
+        setResult(null);
+        setLogs([]);
+        setProgress(0);
+        setFilename('trash_route');
+        setIgnoreOneways(true);
+        setUseCustomStart(false);
+        setStartLat('');
+        setStartLon('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }, []);
+
+      const getLogIcon = (type) => {
+        switch (type) {
+          case 'success': return '✓';
+          case 'warning': return '⚠';
+          case 'error': return '✗';
+          default: return 'ℹ';
+        }
+      };
+
+      return (
+        <div className="min-h-screen bg-background">
+          <header className="header">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'var(--primary)', opacity: 0.2, border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  🚛
+                </div>
+                <div>
+                  <h1 className="font-display text-lg font-semibold">Trash Collection Route Planner</h1>
+                  <p className="text-xs text-muted-foreground font-mono">Chinese Postman Problem Solver</p>
+                </div>
+              </div>
+              <div className="badge">SYSTEM READY</div>
+            </div>
+          </header>
+
+          <div className="flex" style={{ height: 'calc(100vh - 57px)' }}>
+            <aside className="sidebar">
+              <div className="p-4 space-y-4">
+                <div className="card">
+                  <h3 className="text-sm font-display mb-3">OSM File Input</h3>
+                  <div
+                    className={`upload-area ${file ? 'has-file' : ''}`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xml,.osm"
+                      onChange={handleFileSelect}
+                      style={{ display: 'none' }}
+                    />
+                    {file ? (
+                      <div>
+                        <p className="text-sm font-medium">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Click to browse or drop OSM file</p>
+                        <p className="text-xs text-muted-foreground">.xml or .osm format</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="card">
+                  <h3 className="text-sm font-display mb-3">Route Configuration</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-2">Output Filename</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={filename}
+                          onChange={(e) => setFilename(e.target.value)}
+                          placeholder="trash_route"
+                          className="font-mono text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground">.gpx</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Ignore One-Ways</label>
+                        <p className="text-xs text-muted-foreground">Collect both sides</p>
+                      </div>
+                      <label className="switch">
+                        <input
+                          type="checkbox"
+                          checked={ignoreOneways}
+                          onChange={(e) => setIgnoreOneways(e.target.checked)}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs text-muted-foreground">Custom Start Point</label>
+                        <label className="switch">
+                          <input
+                            type="checkbox"
+                            checked={useCustomStart}
+                            onChange={(e) => setUseCustomStart(e.target.checked)}
+                          />
+                          <span className="slider"></span>
+                        </label>
+                      </div>
+                      {useCustomStart && (
+                        <div className="space-y-2 pl-4 border-l-2" style={{ borderColor: 'var(--primary)', opacity: 0.3 }}>
+                          <div>
+                            <label className="text-xs text-muted-foreground block mb-1">Latitude</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={startLat}
+                              onChange={(e) => setStartLat(e.target.value)}
+                              placeholder="e.g., 45.5171"
+                              className="font-mono text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground block mb-1">Longitude</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={startLon}
+                              onChange={(e) => setStartLon(e.target.value)}
+                              placeholder="e.g., -73.6070"
+                              className="font-mono text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <TurnPenaltiesConfig />
+
+                <div className="space-y-2">
+                  <button
+                    onClick={handleGenerate}
+                    disabled={!fileContent || isProcessing}
+                    className="w-full"
+                  >
+                    {isProcessing ? 'Processing...' : 'Generate Route'}
+                  </button>
+
+                  {result && (
+                    <button
+                      onClick={handleDownload}
+                      className="w-full"
+                      style={{ background: 'oklch(0.7 0.2 145)', color: 'white' }}
+                    >
+                      Download GPX
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleReset}
+                    className="w-full"
+                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </aside>
+
+            <main className="main">
+              {isProcessing && (
+                <div style={{ position: 'absolute', top: '1rem', left: '1rem', right: '1rem', zIndex: 10 }}>
+                  <div className="progress">
+                    <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+                  </div>
+                </div>
+              )}
+
+              <LeafletMap
+                route={result || undefined}
+                startPoint={useCustomStart && startLat && startLon ? { lat: parseFloat(startLat), lon: parseFloat(startLon) } : undefined}
+              />
+
+              {!result && !isProcessing && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                  <div style={{ textAlign: 'center', opacity: 0.5 }}>
+                    <p className="text-muted-foreground font-display">Upload an OSM file to visualize the route</p>
+                  </div>
+                </div>
+              )}
+            </main>
+
+            <aside className="panel">
+              {result && (
+                <div className="p-4 border-b">
+                  <h3 className="text-sm font-display mb-3">Route Statistics</h3>
+                  <div className="stats-grid">
+                    <div className="stat-card">
+                      <p className="text-xs text-muted-foreground mb-1">Distance</p>
+                      <p className="font-mono text-lg">{result.stats.totalDistanceKm.toFixed(2)} km</p>
+                    </div>
+                    <div className="stat-card">
+                      <p className="text-xs text-muted-foreground mb-1">Est. Time</p>
+                      <p className="font-mono text-lg">{result.stats.driveTimeMin.toFixed(0)} min</p>
+                    </div>
+                    <div className="stat-card">
+                      <p className="text-xs text-muted-foreground mb-1">Traversals</p>
+                      <p className="font-mono text-lg">{result.stats.totalTraversals.toLocaleString()}</p>
+                    </div>
+                    <div className="stat-card">
+                      <p className="text-xs text-muted-foreground mb-1">Waypoints</p>
+                      <p className="font-mono text-lg">{result.coordinates.length.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)', opacity: 0.3 }}>
+                    <p className="text-xs text-muted-foreground mb-2">Turn Statistics</p>
+                    <div className="stats-grid-3">
+                      <div className="stat-card" style={{ background: 'oklch(0.7 0.2 145 / 0.1)', borderColor: 'oklch(0.7 0.2 145 / 0.3)' }}>
+                        <p className="text-xs" style={{ color: 'oklch(0.7 0.2 145)' }}>Right</p>
+                        <p className="font-mono text-lg" style={{ color: 'oklch(0.7 0.2 145)' }}>{result.stats.rightTurnCount}</p>
+                      </div>
+                      <div className="stat-card" style={{ background: 'oklch(0.7 0.2 60 / 0.1)', borderColor: 'oklch(0.7 0.2 60 / 0.3)' }}>
+                        <p className="text-xs" style={{ color: 'oklch(0.7 0.2 60)' }}>Left</p>
+                        <p className="font-mono text-lg" style={{ color: 'oklch(0.7 0.2 60)' }}>{result.stats.leftTurnCount}</p>
+                      </div>
+                      <div className="stat-card" style={{ 
+                        background: result.stats.uTurnCount === 0 ? 'oklch(0.7 0.2 145 / 0.1)' : 'oklch(0.6 0.2 25 / 0.1)', 
+                        borderColor: result.stats.uTurnCount === 0 ? 'oklch(0.7 0.2 145 / 0.3)' : 'oklch(0.6 0.2 25 / 0.3)' 
+                      }}>
+                        <p className="text-xs" style={{ color: result.stats.uTurnCount === 0 ? 'oklch(0.7 0.2 145)' : 'oklch(0.6 0.2 25)' }}>U-Turns</p>
+                        <p className="font-mono text-lg" style={{ color: result.stats.uTurnCount === 0 ? 'oklch(0.7 0.2 145)' : 'oklch(0.6 0.2 25)' }}>{result.stats.uTurnCount}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+                <div className="px-4 py-3 border-b">
+                  <h3 className="text-sm font-display">Processing Log</h3>
+                </div>
+                <div className="scroll-area">
+                  <div className="p-3 space-y-1" style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                    {logs.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8" style={{ opacity: 0.5 }}>Awaiting input...</p>
+                    ) : (
+                      logs.map((log, index) => (
+                        <div key={index} className="log-entry">
+                          <span>{getLogIcon(log.type)}</span>
+                          <span className="text-muted-foreground">[{log.timestamp.toLocaleTimeString()}]</span>
+                          <span style={{
+                            color: log.type === 'error' ? 'oklch(0.6 0.2 25)' :
+                                   log.type === 'success' ? 'oklch(0.7 0.2 145)' :
+                                   log.type === 'warning' ? 'oklch(0.7 0.2 60)' :
+                                   'var(--foreground)'
+                          }}>{log.message}</span>
+                        </div>
+                      ))
+                    )}
+                    <div ref={logsEndRef} />
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      );
+    }
+
+    // App Component
+    function App() {
+      return (
+        <TurnPenaltiesProvider>
+          <Home />
+        </TurnPenaltiesProvider>
+      );
+    }
+
+    // Render - Wait for DOM to be ready
+    function initApp() {
+      try {
+        console.log('Initializing app...');
+        const rootElement = document.getElementById('root');
+        if (!rootElement) {
+          console.error('Root element not found');
+          return;
+        }
+
+        if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+          console.error('React or ReactDOM not loaded');
+          rootElement.innerHTML = '<div style="padding: 2rem; text-align: center; color: white; font-family: system-ui; background: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;"><h1 style="color: #ff6b6b;">Error: React libraries failed to load</h1><p>Please check your internet connection and try again.</p><p>Make sure you are connected to the internet to load React from CDN.</p><p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">Check the browser console (F12) for more details.</p></div>';
+          return;
+        }
+
+        console.log('React version:', React.version);
+        console.log('Creating root...');
+
+        // Use createRoot if available (React 18+), otherwise fall back to render (React 17)
+        if (ReactDOM.createRoot) {
+          console.log('Using createRoot (React 18+)');
+          const root = ReactDOM.createRoot(rootElement);
+          root.render(<App />);
+        } else {
+          console.log('Using render (React 17)');
+          ReactDOM.render(<App />, rootElement);
+        }
+        
+        console.log('App rendered successfully');
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        console.error('Stack:', error.stack);
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+          rootElement.innerHTML = '<div style="padding: 2rem; text-align: center; color: white; font-family: system-ui; background: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column;"><h1 style="color: #ff6b6b;">Error Loading Application</h1><p style="color: #ff6b6b; margin: 1rem 0;">' + error.message + '</p><p>Please check the browser console (F12) for more details.</p><pre style="background: #2a2a2a; padding: 1rem; border-radius: 4px; margin-top: 1rem; text-align: left; max-width: 600px; overflow: auto;">' + error.stack + '</pre></div>';
+        }
+      }
+    }
+
+    // Wait for all scripts to load, then initialize
+    // Babel processes type="text/babel" scripts automatically, but we need to wait
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(initApp, 500); // Give Babel time to process
+      });
+    } else {
+      setTimeout(initApp, 500);
+    }
+  </script>
+</body>
+</html>
